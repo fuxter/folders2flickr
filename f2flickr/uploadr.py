@@ -28,11 +28,11 @@ import os
 import re
 import shelve
 import sys
+import time
 import urllib2
 import webbrowser
 import exifread
-import string
-from datetime import timedelta, datetime, time, date, tzinfo
+from datetime import datetime
 from itertools import groupby
 from os.path import dirname
 import calendar
@@ -436,9 +436,9 @@ class Uploadr:
             picTags = '"#' + folderTag + '" ' + realTags
 
             #check if we need to override photo dates
+            dateTakenGranularity = configdict.get('date_taken_granularity', '0')
+            dateTaken = datePosted = ''
             if configdict.get('override_dates', '0') == '1':
-                dateTaken = datePosted = ''
-                dateTakenGranularity = configdict.get('date_taken_granularity', '0')
                 #fixed take date
                 if configdict.get('date_taken_type', '0') == '2':
                     datePosted = configdict.get('date_posted_fixed', '')
@@ -462,6 +462,8 @@ class Uploadr:
 
             if exiftags == {}:
                 logging.debug('NO_EXIF_HEADER for %s', image)
+                stats=os.stat(image)
+                dateTaken = time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(stats.st_mtime))
             else:
                 if configdict.get('override_dates', '0') == '1':
                     if 'EXIF DateTimeDigitized' in exiftags:
@@ -496,6 +498,7 @@ class Uploadr:
 
             picTags = picTags.strip()
             logging.info("Uploading image %s with tags %s", image, picTags)
+
             photo = ('photo', image, open(image,'rb').read())
 
 
@@ -513,11 +516,12 @@ class Uploadr:
             d[ api.key ] = FLICKR[ api.key ]
             url = buildRequest(api.upload, d, (photo,))
             res = getResponse(url)
+
             if isGood(res):
                 logging.debug( "successful.")
                 photoid = str(res.photoid.text)
                 self.logUpload(photoid, folderTag, image)
-                if configdict.get('override_dates', '0') == '1':
+                if configdict.get('override_dates', '0') == '1' or exiftags == {}:
                     self.overrideDates(image, photoid, datePosted, dateTaken, dateTakenGranularity)
                 return photoid
             else :
